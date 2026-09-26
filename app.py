@@ -4,6 +4,16 @@ import os
 import sys
 import streamlit as st
 
+import nltk
+try:
+    nltk.data.find('corpora/wordnet')
+except LookupError:
+    nltk.download('wordnet')
+    nltk.download('punkt')
+    nltk.download('stopwords')
+    nltk.download('punkt_tab')
+
+
 # Set page config with wide layout and custom title
 st.set_page_config(
     page_title="Multilingual Hybrid YouTube Video Summarizer",
