@@ -4,6 +4,11 @@ import os
 import sys
 import streamlit as st
 
+
+import spacy
+if not spacy.util.is_package('en_core_web_sm'):
+    spacy.cli.download('en_core_web_sm')
+
 import nltk
 try:
     nltk.data.find('corpora/wordnet')
