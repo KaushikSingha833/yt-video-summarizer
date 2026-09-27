@@ -325,8 +325,10 @@ def render_doc_summarizer():
             text = re.sub(r'2019-20', '', text) # clean specific footer from this capstone PDF
             text = re.sub(r'\d+ / Moments', '', text) # clean header
             text = re.sub(r'The Lost Child / \d+', '', text)
-            # Preserve paragraph newlines but collapse other spaces
+            # Preserve true paragraphs but collapse line wraps
             text = re.sub(r'[ \t]+', ' ', text)
+            # Replace single newlines with a space, but keep double newlines
+            text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)
             text = re.sub(r'\n+', '\n', text)
             return text
         elif name.endswith(".docx"):
