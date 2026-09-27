@@ -125,7 +125,8 @@ def run_doc_pipeline(
     
     # Determine base sentence count based on requested length
     if mode == "extractive":
-        num_sentences = len(non_redundant) # No limit for extractive mode
+        # Extract the top 30% most important sentences dynamically
+        num_sentences = max(5, int(len(non_redundant) * 0.3)) 
     else:
         num_sentences = {"small": 8, "medium": 15, "long": 30}.get(summary_length, 15)
     
