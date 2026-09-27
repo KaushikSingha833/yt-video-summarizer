@@ -83,11 +83,9 @@ def tokenize_transcript(
         total_words += len(words)
 
         tokenized_item = {
+            **item,
             "sentence_id": item.get("sentence_id", len(tokenized_data) + 1),
             "text": sent_text,
-            "start": item.get("start", 0.0),
-            "end": item.get("end", 0.0),
-            "duration": item.get("duration", 0.0),
             "words": words,
             "word_count": len(words)
         }

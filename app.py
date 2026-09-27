@@ -4,7 +4,6 @@ import os
 import sys
 import streamlit as st
 
-
 import spacy
 if not spacy.util.is_package('en_core_web_sm'):
     spacy.cli.download('en_core_web_sm')
@@ -18,10 +17,9 @@ except LookupError:
     nltk.download('stopwords')
     nltk.download('punkt_tab')
 
-
 # Set page config with wide layout and custom title
 st.set_page_config(
-    page_title="Multilingual Hybrid YouTube Video Summarizer",
+    page_title="Multilingual Hybrid Summarizer Studio",
     page_icon="🎬",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -33,8 +31,9 @@ SRC_DIR = os.path.join(BASE_DIR, "src")
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
-# Import the unified pipeline orchestrator
+# Import pipelines
 from pipeline import run_hybrid_pipeline
+from doc_pipeline import run_doc_pipeline
 
 # Custom CSS for modern glassmorphism aesthetic and typography
 st.markdown("""
@@ -90,22 +89,21 @@ st.markdown("""
         font-size: 0.85rem;
         margin: 0.2rem;
     }
+    
+    .metric-box {
+        background: rgba(15, 23, 42, 0.6);
+        border-left: 4px solid #3b82f6;
+        padding: 1rem;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-
-def main():
-    # Header Banner
-    st.markdown('<div class="main-header">🎬 Multilingual Hybrid YouTube Summarizer</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="sub-header">Classical NLP extraction pipeline (Part A) coupled with '
-        'deep pretrained neural models (Part B) for English & Hindi videos.</div>',
-        unsafe_allow_html=True
-    )
-
-    # Sidebar Controls
+def render_video_summarizer():
+    # Sidebar Controls for Video
     with st.sidebar:
-        st.header("⚙️ Configuration")
+        st.header("⚙️ Video Configuration")
 
         target_lang = st.selectbox(
             "Output Language",
@@ -137,12 +135,10 @@ def main():
             "Summarization Engine Mode",
             options=["Fast Mode (Single Model)", "Consensus Mode (Multi-Model Fusion)"],
             index=0,
-            help="Fast mode uses T5-Small; Consensus mode runs multi-model agreement voting."
+            help="Fast mode uses DistilBART; Consensus mode runs multi-model agreement voting."
         )
         is_fast = (mode == "Fast Mode (Single Model)")
-
         st.markdown("---")
-        st.caption("Developed as an end-to-end NLP Capstone Project.")
 
     # Main Input Card
     with st.container():
@@ -177,9 +173,7 @@ def main():
 
     # Process and Output
     if summarize_clicked and video_input:
-        
         progress_bar = st.progress(0, text="Initializing Pipeline...")
-        
         def update_progress(step_num, total_steps, message):
             pct = int((step_num / total_steps) * 100)
             remaining = 100 - pct
@@ -187,7 +181,6 @@ def main():
 
         with st.spinner("Executing classical extraction & neural summarization pipeline..."):
             try:
-                # Run the pipeline with verbose=False for web performance
                 results = run_hybrid_pipeline(
                     video_input=video_input.strip(),
                     target_language=chosen_lang_code,
@@ -203,7 +196,6 @@ def main():
                 video_id = results.get("video_id", "")
                 base_yt_url = f"https://www.youtube.com/watch?v={video_id}" if video_id and not video_id.startswith("en_") and not video_id.startswith("hi_") else ""
 
-                # 1. TITLE ROW: video title, duration, detected language
                 st.markdown("---")
                 st.markdown(f"### 🎬 {results.get('video_title', 'Video Summary')}")
                 t_col1, t_col2, t_col3, t_col4 = st.columns(4)
@@ -213,12 +205,9 @@ def main():
                 t_col4.metric("Word Count", f"{results.get('word_count', 0)} words")
 
                 st.markdown("---")
-
-                # 2. TL;DR: 2-3 sentences that cover the whole video
                 st.markdown("### 📌 TL;DR")
                 st.info(results.get("tldr", ""))
 
-                # 3. CHAPTERS (the main part): One block per chapter in time order
                 if chosen_length_key != "small" and results.get("chapters_summary"):
                     st.markdown("### 📑 Chapters & Discussion")
                     for ch in results.get("chapters_summary", []):
@@ -226,11 +215,8 @@ def main():
                         secs = ch.get("seconds", 0)
                         yt_link = f"{base_yt_url}&t={secs}" if base_yt_url else f"#{timestamp_str}"
                         title_str = ch["title"]
-
-                        # Clickable timestamp link in Title Case
                         ch_header = f"<a href='{yt_link}' target='_blank' style='text-decoration:none; color:#3b82f6; font-weight:700;'>[{timestamp_str}]</a> **{title_str}**"
                         st.markdown(ch_header, unsafe_allow_html=True)
-
                         if chosen_length_key == "long":
                             st.write(ch.get("paragraph", ""))
                         else:
@@ -238,7 +224,6 @@ def main():
                                 st.markdown(f"- {bullet}")
                         st.write("")
 
-                # 4. KEY TAKEAWAYS: 5-8 bullets, each starting with its timestamp [MM:SS]
                 st.markdown("### 💡 Key Takeaways")
                 for tk in results.get("key_takeaways", []):
                     timestamp_str = tk["timestamp"]
@@ -248,8 +233,6 @@ def main():
                     st.markdown(f"- {takeaway_line}", unsafe_allow_html=True)
 
                 st.markdown("---")
-
-                # 5. KEYWORDS AND ENTITIES
                 kw_col, ent_col = st.columns(2)
                 with kw_col:
                     st.markdown("### 🏷️ Top Keywords")
@@ -262,13 +245,11 @@ def main():
                 with ent_col:
                     st.markdown("### 👥 Named Entities")
                     raw_entities = results.get("entities", {})
-                    # Group as People, Organizations, Places
                     grouped = {
                         "People": raw_entities.get("PERSON", []),
                         "Organizations": raw_entities.get("ORG", []) + raw_entities.get("ORGANIZATION", []),
                         "Places": raw_entities.get("GPE", []) + raw_entities.get("LOC", []) + raw_entities.get("LOCATION", [])
                     }
-
                     has_any_entity = False
                     for group_name, items in grouped.items():
                         unique_items = list(dict.fromkeys(items))
@@ -277,118 +258,11 @@ def main():
                             st.markdown(f"**{group_name}**:")
                             tags_html = "".join([f"<span class='entity-tag'>{e}</span>" for e in unique_items[:8]])
                             st.markdown(tags_html, unsafe_allow_html=True)
-
                     if not has_any_entity:
                         st.write("No distinct named entities detected.")
 
                 st.markdown("---")
-
-                # 6. DOWNLOAD: Summary as .txt and .pdf
-                st.markdown("### 💾 Download Summary")
-                d_col1, d_col2 = st.columns(2)
-
-                # TXT Report
-                txt_summary_lines = [
-                    f"TITLE: {results.get('video_title')}",
-                    f"DURATION: {results.get('duration_formatted')} | DETECTED LANGUAGE: {results.get('detected_language', 'en').upper()} | OUTPUT: {results.get('target_language', 'en').upper()}",
-                    "=" * 60,
-                    "\nTL;DR:",
-                    results.get("tldr", ""),
-                    "\n" + "=" * 60
-                ]
-
-                if chosen_length_key != "small" and results.get("chapters_summary"):
-                    txt_summary_lines.append("\nCHAPTERS:")
-                    for ch in results.get("chapters_summary", []):
-                        txt_summary_lines.append(f"\n[{ch['timestamp']}] {ch['title']}")
-                        if chosen_length_key == "long":
-                            txt_summary_lines.append(f"  {ch.get('paragraph', '')}")
-                        else:
-                            for b in ch.get("bullets", []):
-                                txt_summary_lines.append(f"  - {b}")
-
-                txt_summary_lines.append("\n" + "=" * 60)
-                txt_summary_lines.append("\nKEY TAKEAWAYS:")
-                for tk in results.get("key_takeaways", []):
-                    txt_summary_lines.append(f"- [{tk['timestamp']}] {tk['text']}")
-
-                txt_content = "\n".join(txt_summary_lines)
-
-                with d_col1:
-                    st.download_button(
-                        label="📄 Download Summary (.txt)",
-                        data=txt_content.encode("utf-8"),
-                        file_name=f"summary_{video_id if video_id else 'video'}.txt",
-                        mime="text/plain",
-                        use_container_width=True
-                    )
-
-                # PDF Report
-                def build_pdf_bytes():
-                    from fpdf import FPDF
-                    pdf = FPDF()
-                    pdf.add_page()
-                    pdf.set_auto_page_break(auto=True, margin=15)
-                    pdf.set_font("Helvetica", "B", 15)
-                    safe_title = results.get("video_title", "Video Summary").encode("latin-1", "replace").decode("latin-1")
-                    pdf.multi_cell(0, 8, safe_title)
-                    pdf.ln(2)
-
-                    pdf.set_font("Helvetica", "I", 10)
-                    meta_str = f"Duration: {results.get('duration_formatted')} | Detected Lang: {results.get('detected_language', 'en').upper()} | Mode: {chosen_length_key.title()}"
-                    pdf.cell(0, 6, meta_str.encode("latin-1", "replace").decode("latin-1"), ln=True)
-                    pdf.ln(3)
-
-                    # TL;DR
-                    pdf.set_font("Helvetica", "B", 12)
-                    pdf.cell(0, 6, "TL;DR", ln=True)
-                    pdf.set_font("Helvetica", "", 10)
-                    safe_tldr = results.get("tldr", "").encode("latin-1", "replace").decode("latin-1")
-                    pdf.multi_cell(0, 5, safe_tldr)
-                    pdf.ln(3)
-
-                    # Chapters
-                    if chosen_length_key != "small" and results.get("chapters_summary"):
-                        pdf.set_font("Helvetica", "B", 12)
-                        pdf.cell(0, 6, "Chapters", ln=True)
-                        for ch in results.get("chapters_summary", []):
-                            pdf.set_font("Helvetica", "B", 10)
-                            ch_line = f"[{ch['timestamp']}] {ch['title']}".encode("latin-1", "replace").decode("latin-1")
-                            pdf.cell(0, 5, ch_line, ln=True)
-                            pdf.set_font("Helvetica", "", 9)
-                            if chosen_length_key == "long":
-                                pdf.multi_cell(0, 5, ch.get("paragraph", "").encode("latin-1", "replace").decode("latin-1"))
-                            else:
-                                for b in ch.get("bullets", []):
-                                    pdf.multi_cell(0, 5, f"  - {b}".encode("latin-1", "replace").decode("latin-1"))
-                            pdf.ln(1)
-
-                    # Key Takeaways
-                    pdf.set_font("Helvetica", "B", 12)
-                    pdf.cell(0, 6, "Key Takeaways", ln=True)
-                    pdf.set_font("Helvetica", "", 9)
-                    for tk in results.get("key_takeaways", []):
-                        tk_line = f"- [{tk['timestamp']}] {tk['text']}".encode("latin-1", "replace").decode("latin-1")
-                        pdf.multi_cell(0, 5, tk_line)
-
-                    return pdf.output(dest="S").encode("latin-1", errors="replace")
-
-                with d_col2:
-                    try:
-                        pdf_data = build_pdf_bytes()
-                        st.download_button(
-                            label="📕 Download Summary (.pdf)",
-                            data=pdf_data,
-                            file_name=f"summary_{video_id if video_id else 'video'}.pdf",
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
-                    except Exception as pdf_err:
-                        st.caption(f"PDF generator notice: {pdf_err}")
-
-                st.markdown("---")
-
-                # 7. "Compare methods" expander, collapsed by default
+                
                 with st.expander("🔍 Compare methods (Hybrid / NLP Pipeline Only / Models Only)", expanded=False):
                     c_tab1, c_tab2, c_tab3 = st.tabs([
                         "✨ Hybrid (Part A + B)",
@@ -407,8 +281,171 @@ def main():
 
             except Exception as e:
                 st.error(f"❌ Error processing video: {str(e)}")
-                st.info("Tip: Try using one of the pre-cached demo IDs (e.g., `en_short_01` or `hi_clean_01`) if offline.")
 
+def render_doc_summarizer():
+    # Sidebar Controls for Document
+    with st.sidebar:
+        st.header("⚙️ Document Configuration")
+        doc_mode = st.radio(
+            "Document Summarizer Mode",
+            options=["Extractive Mode", "Abstractive Mode"],
+            index=1,
+            help="Extractive pulls exact sentences. Abstractive uses AI to rewrite them."
+        )
+        is_doc_abstractive = (doc_mode == "Abstractive Mode")
+        
+        doc_length_option = st.selectbox(
+            "Document Summary Length",
+            options=["Small (~100 words)", "Medium (~250 words)", "Long (~500 words)"],
+            index=1,
+            key="doc_length_select"
+        )
+        doc_length_key = {
+            "Small (~100 words)": "small",
+            "Medium (~250 words)": "medium",
+            "Long (~500 words)": "long"
+        }[doc_length_option]
+        st.markdown("---")
+        st.caption("Capstone Project: Group 6")
+
+    st.subheader("📑 Intelligent Multi-Document Summarization System")
+    st.write("Upload one or multiple text documents. The system will merge them, remove redundant information, and extract the core facts.")
+    
+    uploaded_files = st.file_uploader("Upload Documents (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"], accept_multiple_files=True)
+    
+    def extract_text(file) -> str:
+        name = file.name.lower()
+        if name.endswith(".pdf"):
+            import pypdf
+            import re
+            reader = pypdf.PdfReader(file)
+            text = "\n".join([page.extract_text() or "" for page in reader.pages])
+            # Clean common PDF extraction artifacts (broken words, floating headers)
+            text = re.sub(r'\b(\w)\s+(\w{2,})\b', r'\1\2', text) # fixes "r eiterated", "fr ee"
+            text = re.sub(r'2019-20', '', text) # clean specific footer from this capstone PDF
+            text = re.sub(r'\d+ / Moments', '', text) # clean header
+            text = re.sub(r'The Lost Child / \d+', '', text)
+            # Preserve paragraph newlines but collapse other spaces
+            text = re.sub(r'[ \t]+', ' ', text)
+            text = re.sub(r'\n+', '\n', text)
+            return text
+        elif name.endswith(".docx"):
+            import docx
+            doc = docx.Document(file)
+            return "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+        else:
+            return file.read().decode("utf-8", errors="ignore")
+    
+    if st.button("🚀 Summarize Documents", type="primary", use_container_width=True):
+        if not uploaded_files:
+            st.warning("Please upload at least one document.")
+            return
+            
+        doc_contents = []
+        doc_names = []
+        for file in uploaded_files:
+            doc_contents.append(extract_text(file))
+            doc_names.append(file.name)
+            
+        progress_bar = st.progress(0, text="Initializing Document Pipeline...")
+        def update_progress(step_num, total_steps, message):
+            pct = int((step_num / total_steps) * 100)
+            progress_bar.progress(pct, text=f"Stage {step_num}/{total_steps}: {message}")
+            
+        with st.spinner("Running Multi-Document Pipeline..."):
+            try:
+                results = run_doc_pipeline(
+                    doc_contents=doc_contents,
+                    doc_names=doc_names,
+                    mode="abstractive" if is_doc_abstractive else "extractive",
+                    summary_length=doc_length_key,
+                    progress_callback=update_progress
+                )
+                
+                progress_bar.progress(100, text="✅ Document Processing Complete!")
+                
+                st.markdown("---")
+                
+                # 1. Multi-document summarization
+                st.markdown("### 1️⃣ Multi-Document Processing")
+                st.info(f"Successfully parsed **{results['num_docs']} documents** containing **{results['total_sentences']} total sentences**.")
+                
+                # 2. Keyword extraction
+                st.markdown("### 2️⃣ Keyword Extraction (TF-IDF)")
+                if results.get("top_keywords"):
+                    kw_tags = "".join([f"<span class='entity-tag'>#{kw}</span>" for kw, _ in results["top_keywords"][:15]])
+                    st.markdown(kw_tags, unsafe_allow_html=True)
+                else:
+                    st.write("No dominant keywords extracted.")
+                    
+                # 3. Sentence ranking
+                st.markdown("### 3️⃣ Sentence Ranking (Embeddings)")
+                with st.expander("View Top 10 Ranked Sentences Across Corpus", expanded=False):
+                    for i, s in enumerate(results["ranked_sentences"]):
+                        doc_label = s.get('doc_id', 'Document')
+                        para = s.get('para_num', '?')
+                        line = s.get('line_num', '?')
+                        score = s.get('composite_score', 0)
+                        st.markdown(f"**#{i+1} [Score: {score:.2f}]** ({doc_label} | Para {para}, Line {line}): {s['text']}")
+                
+                # 4. Redundancy removal
+                st.markdown("### 4️⃣ Redundancy Removal")
+                r_stats = results["redundancy_stats"]
+                st.warning(f"**Semantic Duplicate Filtering:** Removed **{r_stats['removed']} redundant sentences** across the documents. (Reduced from {r_stats['initial']} to {r_stats['final']} unique core sentences).")
+                if r_stats.get("dropped_details"):
+                    with st.expander("View Dropped Redundancy Logs"):
+                        for drop in r_stats["dropped_details"]:
+                            cand, chosen, sim = drop
+                            st.write(f"**Dropped:** {cand['text']}")
+                            st.caption(f"Reason: Matched \"{chosen['text'][:80]}...\" with {sim:.2f} similarity.")
+                
+                # 5. Extractive summarization
+                st.markdown("### 5️⃣ Extractive Summarization")
+                st.write(results["extractive_summary"])
+                
+                # 6. Summary compression (Abstractive only)
+                if is_doc_abstractive:
+                    st.markdown("### 6️⃣ Summary Compression (Abstractive Rewrite)")
+                    st.success(results["abstractive_summary"])
+                
+                # 7. Coherence evaluation
+                st.markdown("### 7️⃣ Coherence Evaluation")
+                c_score = results["coherence_score"]
+                st.metric("Sentence-to-Sentence Semantic Coherence Score", f"{c_score}%")
+                if results.get("coherence_details"):
+                    with st.expander("View Sentence Flow Analysis"):
+                        for pair in results["coherence_details"]:
+                            st.write(f"**Flow Transition (Similarity: {pair['sim']:.2f}):**")
+                            st.caption(f"1. {pair['sent1']}")
+                            st.caption(f"2. {pair['sent2']}")
+                            st.divider()
+                
+                # 8. Factual consistency
+                st.markdown("### 8️⃣ Factual Consistency Analysis")
+                fc = results["fact_check"]
+                st.metric("Factual Alignment w/ Source", f"{fc['overall_consistency_pct']}%")
+                with st.expander("View Detailed Fact Check Report", expanded=False):
+                    for item in fc.get("details", []):
+                        st.write(f"- **Sentence:** {item['sentence']}")
+                        st.write(f"  - **Status:** {item['status']}")
+                        st.write(f"  - **Supporting Source:** {item['best_source_match']}")
+                        st.write(f"  - **Similarity:** {item['support_score']:.2f}")
+                        
+            except Exception as e:
+                st.error(f"❌ Error processing documents: {str(e)}")
+
+def main():
+    # Header Banner
+    st.markdown('<div class="main-header">🧠 NLP Capstone Summarizer Studio</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Multi-Document Analysis & Hybrid YouTube Summarization (Group 6)</div>', unsafe_allow_html=True)
+
+    tab1, tab2 = st.tabs(["📺 YouTube Video Summarizer", "📑 Multi-Document Summarizer"])
+    
+    with tab1:
+        render_video_summarizer()
+        
+    with tab2:
+        render_doc_summarizer()
 
 if __name__ == "__main__":
     main()

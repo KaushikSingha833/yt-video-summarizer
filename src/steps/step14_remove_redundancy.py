@@ -67,7 +67,8 @@ def restore_chronological_order(selected_sentences: List[Dict]) -> List[Dict]:
 def remove_redundancy_and_order(
     scored_sentences: List[Dict],
     similarity_threshold: float = 0.72,
-    verbose: bool = True
+    verbose: bool = True,
+    return_dropped: bool = False
 ) -> List[Dict]:
     """
     Main Step 14 function.
@@ -108,6 +109,8 @@ def remove_redundancy_and_order(
             print(f"    [{s['start']}s] S{s['sentence_id']}: \"{s['text']}\"")
         print("=" * 50 + "\n")
 
+    if return_dropped:
+        return ordered_sentences, dropped
     return ordered_sentences
 
 

@@ -93,8 +93,7 @@ def clean_transcript(transcript: List[Dict], language: str = "en", verbose: bool
 
         if t:  # Keep non-empty
             cleaned_seg = {
-                "start": seg.get("start", 0.0),
-                "duration": seg.get("duration", 0.0),
+                **seg,
                 "text": t
             }
             cleaned_segments.append(cleaned_seg)
