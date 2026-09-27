@@ -9,6 +9,7 @@ youtube-transcript-api>=0.6.3
 yt-dlp>=2025.2.0
 
 # Deep Learning & Transformers
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch>=2.2.0
 torchvision>=0.17.0
 transformers>=4.48.0
