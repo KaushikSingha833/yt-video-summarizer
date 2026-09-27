@@ -124,7 +124,10 @@ def run_doc_pipeline(
     if progress_callback: progress_callback(8, 10, "Generating Extractive Summary")
     
     # Determine base sentence count based on requested length
-    num_sentences = {"small": 8, "medium": 15, "long": 30}.get(summary_length, 15)
+    if mode == "extractive":
+        num_sentences = len(non_redundant) # No limit for extractive mode
+    else:
+        num_sentences = {"small": 8, "medium": 15, "long": 30}.get(summary_length, 15)
     
     # Sort by score first
     sorted_by_score = sorted(non_redundant, key=lambda x: x.get("composite_score", 0), reverse=True)
