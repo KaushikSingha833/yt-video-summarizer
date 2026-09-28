@@ -66,7 +66,7 @@ def restore_chronological_order(selected_sentences: List[Dict]) -> List[Dict]:
 
 def remove_redundancy_and_order(
     scored_sentences: List[Dict],
-    similarity_threshold: float = 0.72,
+    similarity_threshold: float = None,
     verbose: bool = True,
     return_dropped: bool = False
 ) -> List[Dict]:
@@ -76,6 +76,9 @@ def remove_redundancy_and_order(
     - # 14b: Removes semantically redundant sentences (cosine sim > threshold)
     - # 14c: Restores chronological video order
     """
+    from config import Config
+    if similarity_threshold is None:
+        similarity_threshold = Config.REDUNDANCY_THRESHOLD
     if not scored_sentences:
         return []
 

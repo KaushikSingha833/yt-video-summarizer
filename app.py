@@ -320,17 +320,22 @@ def render_doc_summarizer():
             import re
             reader = pypdf.PdfReader(file)
             text = "\n".join([page.extract_text() or "" for page in reader.pages])
-            # Clean common PDF extraction artifacts (broken words, floating headers)
-            text = re.sub(r'\b(\w)\s+(\w{2,})\b', r'\1\2', text) # fixes "r eiterated", "fr ee"
-            text = re.sub(r'2019-20', '', text) # clean specific footer from this capstone PDF
-            text = re.sub(r'\d+ / Moments', '', text) # clean header
-            text = re.sub(r'The Lost Child / \d+', '', text)
-            # Preserve true paragraphs but collapse line wraps
+            
+            # 1. Fix line-wrap hyphenation (e.g., "summa-\nrization" -> "summarization")
+            text = re.sub(r'-\n\s*', '', text)
+            
+            # 2. Remove stray symbols often from PDF bullets/artifacts
+            text = re.sub(r'[□•▪►❖]+', '', text)
+            
+            # 3. Clean common PDF extraction spacing artifacts
+            text = re.sub(r'\b(\w)\s+(\w{2,})\b', r'\1\2', text)
+            
+            # 4. Preserve true paragraphs but collapse line wraps
             text = re.sub(r'[ \t]+', ' ', text)
-            # Replace single newlines with a space, but keep double newlines
             text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)
-            text = re.sub(r'\n+', '\n', text)
-            return text
+            text = re.sub(r'\n{3,}', '\n\n', text)
+            
+            return text.strip()
         elif name.endswith(".docx"):
             import docx
             doc = docx.Document(file)
@@ -408,7 +413,10 @@ def render_doc_summarizer():
                 # 6. Summary compression (Abstractive only)
                 if is_doc_abstractive:
                     st.markdown("### 6️⃣ Summary Compression (Abstractive Rewrite)")
-                    st.success(results["abstractive_summary"])
+                    if results["mode"] == "extractive" and not results["abstractive_summary"]:
+                        st.warning("⚠️ **QA Gate Triggered:** The AI attempted an Abstractive rewrite, but the generated text failed the Coherence/Consistency thresholds. The system automatically discarded it and fell back to the safe Extractive output above to prevent hallucinations.")
+                    else:
+                        st.success(results["abstractive_summary"])
                 
                 # 7. Coherence evaluation
                 st.markdown("### 7️⃣ Coherence Evaluation")

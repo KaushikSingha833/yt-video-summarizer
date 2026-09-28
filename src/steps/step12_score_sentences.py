@@ -163,6 +163,31 @@ def score_sentences(
         item["composite_score"] = round(float(c_score), 4)
         scored_sentences.append(item)
 
+    # Apply MMR (Maximal Marginal Relevance) using config
+    from config import Config
+    lambda_param = Config.MMR_LAMBDA
+    
+    selected_indices = []
+    unselected_indices = list(range(n))
+    mmr_scores = [s["composite_score"] for s in scored_sentences]
+    
+    while unselected_indices:
+        # Find index with max mmr_score among unselected
+        best_idx = max(unselected_indices, key=lambda i: mmr_scores[i])
+        selected_indices.append(best_idx)
+        unselected_indices.remove(best_idx)
+        
+        # Update MMR scores for the rest
+        for i in unselected_indices:
+            max_sim = max([sim_matrix[i][s_idx] for s_idx in selected_indices])
+            # MMR formula: lambda * relevance - (1-lambda) * max_similarity
+            new_score = lambda_param * scored_sentences[i]["composite_score"] - (1 - lambda_param) * max_sim
+            mmr_scores[i] = new_score
+            
+    # Assign new MMR scores
+    for i in range(n):
+        scored_sentences[i]["composite_score"] = round(float(mmr_scores[i]), 4)
+
     if verbose:
         print("\n" + "=" * 50)
         print("===== STEP 12: MULTI-SIGNAL SENTENCE SCORING =====")

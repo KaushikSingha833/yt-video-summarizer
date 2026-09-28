@@ -75,29 +75,36 @@ def get_seq2seq_model(model_name: str = "sshleifer/distilbart-cnn-12-6"):
 
 def run_abstractive_inference(
     input_text: str,
-    model_name: str = "sshleifer/distilbart-cnn-12-6",
-    max_len: int = 120,
-    min_len: int = 20,
+    model_name: str = None,
+    max_len: int = 250,
+    min_len: int = 50,
     fast_mode: bool = True
 ) -> str:
     """
-    Generates an abstractive summary using the specified pretrained model.
+    Generates an abstractive summary using the specified pretrained model, grounded in the prompt.
     """
+    from config import Config
+    if model_name is None:
+        model_name = Config.ABSTRACTIVE_MODEL
+        
     input_text = input_text.strip()
     if not input_text:
         return ""
 
     try:
         tok, model = get_seq2seq_model(model_name)
-        prompt = f"summarize: {input_text}" if "t5" in model_name else input_text
+        # We are using BART which is already downloaded. It requires raw text, no prompt formatting.
+        prompt = input_text
+        
         inputs = tok(prompt, return_tensors="pt", max_length=1024, truncation=True)
 
-        beams = 1 if fast_mode else 2
+        beams = 4 if fast_mode else 8  # Use heavy beam search to stick to facts
         summary_ids = model.generate(
             **inputs,
             max_length=max_len,
             min_length=min_len,
             num_beams=beams,
+            do_sample=False,  # TURN OFF SAMPLING TO KILL HALLUCINATIONS
             early_stopping=True,
             no_repeat_ngram_size=3,
             repetition_penalty=2.5,

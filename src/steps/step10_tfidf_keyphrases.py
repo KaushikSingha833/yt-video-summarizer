@@ -54,9 +54,22 @@ def compute_tfidf(sentences: List[Dict]) -> Tuple[List[Dict], List[str], Any]:
     if not any(doc.strip() for doc in corpus):
         corpus = [item.get("text", "") for item in sentences]
 
-    vectorizer = TfidfVectorizer(ngram_range=(1, 2), min_df=1, token_pattern=r'\S+')
-    tfidf_matrix = vectorizer.fit_transform(corpus)
-    feature_names = list(vectorizer.get_feature_names_out())
+    from config import Config
+    vectorizer = TfidfVectorizer(
+        ngram_range=Config.KEYWORD_NGRAM_RANGE, 
+        min_df=Config.KEYWORD_MIN_DF,
+        max_df=Config.KEYWORD_MAX_DF,
+        token_pattern=r'\S+'
+    )
+    
+    try:
+        tfidf_matrix = vectorizer.fit_transform(corpus)
+        feature_names = list(vectorizer.get_feature_names_out())
+    except ValueError:
+        # Fallback if vocabulary is empty due to extreme filtering
+        vectorizer = TfidfVectorizer(ngram_range=(1, 2), min_df=1, token_pattern=r'\S+')
+        tfidf_matrix = vectorizer.fit_transform(corpus)
+        feature_names = list(vectorizer.get_feature_names_out())
 
     # Assign TF-IDF sentence score
     for idx, item in enumerate(sentences):

@@ -159,30 +159,36 @@ def run_doc_pipeline(
     from steps.step14_remove_redundancy import restore_chronological_order
     top_n_ordered = restore_chronological_order(top_n)
     
-    # Group extractive summary by document for readability
-    doc_groups = {}
-    for s in top_n_ordered:
-        d_id = s.get("doc_id", "Document")
-        if d_id not in doc_groups:
-            doc_groups[d_id] = []
-        doc_groups[d_id].append(s["text"])
-        
+    # Group extractive summary into clean paragraphs (no citation bleeding)
     extractive_summary_text = ""
-    for d_id, sents in doc_groups.items():
-        extractive_summary_text += f"**From {d_id}:**\n" + " ".join(sents) + "\n\n"
+    for i in range(0, len(top_n_ordered), 5):
+        chunk = top_n_ordered[i:i+5]
+        extractive_summary_text += " ".join(s["text"] for s in chunk) + "\n\n"
     extractive_summary_text = extractive_summary_text.strip()
     
     # 9. Abstractive Compression
     abstractive_summary_text = ""
     if mode == "abstractive":
-        if progress_callback: progress_callback(9, 10, "Abstractive Compression (DistilBART)")
+        if progress_callback: progress_callback(9, 10, f"Abstractive Compression (Neural Model)")
+        from config import Config
+        
+        # Make the summary longer based on the user's UI selection
+        length_map = {
+            "small": {"max": 200, "min": 80},
+            "medium": {"max": 400, "min": 150},
+            "long": {"max": 650, "min": 300}
+        }
+        bounds = length_map.get(summary_length, {"max": 400, "min": 150})
+        
         abstractive_summary_text = run_abstractive_inference(
             extractive_summary_text, 
-            model_name="sshleifer/distilbart-cnn-12-6",
-            max_len=250, 
-            min_len=80, 
-            fast_mode=True
+            model_name=Config.ABSTRACTIVE_MODEL,
+            max_len=bounds["max"], 
+            min_len=bounds["min"], 
+            fast_mode=False  # Force highest quality beam search
         )
+    
+    from config import Config
     
     if progress_callback: progress_callback(10, 10, "Evaluating Coherence & Consistency")
     
@@ -194,6 +200,18 @@ def run_doc_pipeline(
     
     # Factual Consistency
     fact_check = fact_check_summary(summary_to_eval, tokenized, verbose=False)
+    
+    # Gate Implementation: Fallback to Extractive if Abstractive fails metrics
+    if mode == "abstractive":
+        if coherence_score < Config.COHERENCE_GATE_THRESHOLD or fact_check.get("overall_consistency_pct", 100) < Config.CONSISTENCY_GATE_THRESHOLD:
+            print(f"[!] Warning: Abstractive output failed QA gates (Coherence: {coherence_score}, Consistency: {fact_check.get('overall_consistency_pct')}). Falling back to Extractive.")
+            abstractive_summary_text = ""
+            mode = "extractive"
+            summary_to_eval = extractive_summary_text
+            # Re-evaluate for the fallback text to keep metrics accurate
+            eval_sents = [s.strip() for s in re.split(r'(?<=[.!?]) +', summary_to_eval) if s.strip()]
+            coherence_score, coherence_details = evaluate_coherence(eval_sents)
+            fact_check = fact_check_summary(summary_to_eval, tokenized, verbose=False)
     
     results = {
         "num_docs": total_docs,
