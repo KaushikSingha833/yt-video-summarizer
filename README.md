@@ -1,6 +1,6 @@
 # Multilingual Hybrid YouTube Video Summarizer
 
-A hybrid NLP pipeline combining classical linguistic extraction (Part A) with pretrained neural models (Part B) to summarize English and Hindi YouTube videos.
+A Hybrid NLP pipeline combining classical linguistic extraction (Part A) with pretrained neural models (Part B) to summarize English and Hindi YouTube videos.
 
 ## Project Structure
 - `src/steps/`: Individual NLP pipeline steps (Step 1 to Step 15)
