@@ -1,5 +1,5 @@
 # ===== MULTILINGUAL HYBRID YOUTUBE VIDEO SUMMARIZER PIPELINE =====
-
+#read comments for better understanding
 import os
 import sys
 import argparse
